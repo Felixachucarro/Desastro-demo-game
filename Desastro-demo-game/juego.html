@@ -1,0 +1,230 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Desastro/Demo</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<!-- Este juego es un demo y practica para poder entender las dinamicas y fisicas de un juego con el framework Phaser 3.0 
+    -las imagenes utilizadas son parte de dibujos mios reutilizados (fondo del juego)
+    -El personaje y su sprite es un croqis realizado solo para definir el concepto. 
+    -La historia de Desastro se centra en un chico que sufre ataques de panico, el objetivo del juego es ayudarlo a
+    superar su crisis -->
+
+
+
+<script type="text/javascript">
+// El texto cambia a Javascript 
+var config = {
+        type: Phaser.AUTO,
+        width: 1300,
+        height: 600,
+        physics: {
+            default: 'arcade',          
+            arcade: {
+                gravity: { y: 250 },  /*gravedad del juego*/
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+      
+// Variables del juego  
+var player;
+var stars;
+var bombs;
+var platforms;
+var cursors;
+var score = 0;
+var gameOver = false;
+var scoreText;
+
+var game = new Phaser.Game(config);
+    
+
+/*Función preload: carga las imagenes que vamos a usar en el proyecto*/
+
+function preload ()
+{       
+    this.load.image('sky', 'assets/sky.png');
+    this.load.image('grounds', 'assets/platform.png');
+    this.load.image('stars', 'assets/star.png');
+    this.load.image('bomb', 'assets/bomb.png');
+    this.load.image('ocasi','assets/ocasi.png');
+    this.load.image('ground','assets/plataa.png');
+    this.load.image('star','assets/sube.png');
+
+    // cargamos el sprite del personaje, si ustedes quieren crear un personaje propio con cantidad de sprites distintos o inclusive otro tamaño
+    // tienen que dividir el ancho de la imagen por la cantidad de frames
+    // en mi caso el ancho de mi sprite es de 920px esto dividido a la cantidad de frames (8) es igual a 115px
+    // esto es muy importante para que el personaje no aparezca cortado 
+    this.load.spritesheet('dude', 'assets/sprii.png', {frameWidth: 115, frameHeight: 169 } );
+}
+           
+function create ()
+{   
+    // fondo del juego
+    this.add.image(600, 300, 'ocasi');
+    
+    // Contiene el suelo y las plataformas
+    platforms = this.physics.add.staticGroup();
+
+    // creamos el suelo/escalamos su tamaño para que quepa en la pantalla
+    // cada plataform.create indica una plataforma y sus coordenadas en pantalla 
+    platforms.create(400, 568, 'ground')
+    
+    // piso
+    platforms.create(650, 350, 'ground');              
+    // plataforma media   
+    platforms.create(900, 137, 'ground');    
+        //arriba 
+
+        // jugador y sus configs/ 
+        
+    player = this.physics.add.sprite(100, 450, 'dude');
+        // fisicas del jugador
+    player.setBounce(0.2);
+    player.setCollideWorldBounds(true);
+
+    // comportamiento del jugador y sus animaciones
+    this.anims.create({
+        key: 'left',
+        frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+        frameRate: 10,
+        repeat: -1
+    });
+    // inputs
+    this.anims.create({
+        key: 'turn',
+        frames: [ { key: 'dude', frame: 4 } ],
+         frameRate: 20
+    });
+
+    this.anims.create({
+        key: 'right',
+        frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    // eventos input
+    cursors = this.input.keyboard.createCursorKeys();
+
+    //  Objetos para recolectar
+    stars = this.physics.add.group({
+        key: 'star',
+        repeat: 26,
+        setXY: { x: 12, y: 0, stepX: 70 }
+    });
+
+    stars.children.iterate(function (child) {
+        // Le da a cada objeto un salto diferente
+        child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+
+    });
+
+    bombs = this.physics.add.group();
+
+    //  puntaje
+    scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+
+    //  Choca al jugador y las estrellas con las plataformas.
+    this.physics.add.collider(player, platforms);
+    this.physics.add.collider(stars, platforms);
+    this.physics.add.collider(bombs, platforms);
+
+    // Comprueba si el jugador se superpone con alguna de las estrellas, si llama a la función collectStar
+    this.physics.add.overlap(player, stars, collectStar, null, this);
+
+    this.physics.add.collider(player, bombs, hitBomb, null, this);
+}
+
+function update ()
+{
+    if (gameOver)
+    {
+        return;
+    }
+
+    if (cursors.left.isDown)
+     {
+        player.setVelocityX(-160);
+
+        player.anims.play('left', true);
+    }
+    else if (cursors.right.isDown)
+    {
+        player.setVelocityX(160);
+
+        player.anims.play('right', true);
+    }
+    else
+    {
+        player.setVelocityX(0);
+
+         player.anims.play('turn');
+    }
+
+    if (cursors.up.isDown && player.body.touching.down)
+    {
+        player.setVelocityY(-330);
+    }
+}
+
+function collectStar (player, star)
+{
+    star.disableBody(true, true);
+
+    //  añada y actualiza el puntaje
+    score += 10;
+    scoreText.setText('Score: ' + score);
+
+    if (stars.countActive(true) === 0)
+    {
+        // añade estrellas
+        stars.children.iterate(function (child) {
+
+            child.enableBody(true, child.x, 0, true, true);
+
+        });
+
+            var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+
+            var bomb = bombs.create(x, 16, 'bomb');
+            bomb.setBounce(1);
+            bomb.setCollideWorldBounds(true);
+            bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+            bomb.allowGravity = false;
+
+        }
+    }
+
+    function hitBomb (player, bomb)
+    {
+        this.physics.pause();
+
+        player.setTint(0xff0000);
+
+        player.anims.play('turn');
+
+        gameOver = true;
+    }
+</script>
+
+</body>
+</html>
+            
+   
+
+       
+   
